@@ -1,0 +1,117 @@
+name: Build Kernel
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    
+    steps:
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc bison flex libssl-dev libelf-dev \
+            make gcc git python3 \
+            binutils-aarch64-linux-gnu \
+            gcc-aarch64-linux-gnu \
+            libncurses-dev
+
+      - name: Download Android Clang toolchain
+        run: |
+          mkdir -p prebuilts/clang/host/linux-x86
+          cd prebuilts/clang/host/linux-x86
+          # 下载 clang-4691093（与原始 Kernel_build.sh 一致）
+          wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android10-release/clang-4691093.tar.gz \
+            -O clang-4691093.tar.gz || \
+          # 备用：使用 clang-r353983c（功能等价）
+          wget -q "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-r353983c.tar.gz" \
+            -O clang-4691093.tar.gz
+          mkdir -p clang-4691093
+          tar -xf clang-4691093.tar.gz -C clang-4691093
+          chmod +x clang-4691093/bin/clang
+
+      - name: Download Android GCC toolchain (aarch64-linux-android-4.9)
+        run: |
+          mkdir -p prebuilts/gcc/linux-x86/aarch64
+          cd prebuilts/gcc/linux-x86/aarch64
+          wget -q "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/android10-release.tar.gz" \
+            -O aarch64-linux-android-4.9.tar.gz
+          mkdir -p aarch64-linux-android-4.9
+          tar -xf aarch64-linux-android-4.9.tar.gz -C aarch64-linux-android-4.9
+          chmod +x aarch64-linux-android-4.9/bin/*
+
+      - name: Set up build environment
+        run: |
+          export GCC_PATH=${GITHUB_WORKSPACE}/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin
+          export CC=${GITHUB_WORKSPACE}/prebuilts/clang/host/linux-x86/clang-4691093/bin/clang
+          export PATH=$GCC_PATH:$PATH
+          echo "GCC_PATH=$GCC_PATH" >> $GITHUB_ENV
+          echo "CC=$CC" >> $GITHUB_ENV
+          echo "PATH=$GCC_PATH:$PATH" >> $GITHUB_ENV
+
+      - name: Configure kernel (make defconfig)
+        run: |
+          mkdir -p out/target/product/achilles6_row_wifi/obj/KERNEL_OBJ
+          make -j$(nproc) \
+            O=${GITHUB_WORKSPACE}/out/target/product/achilles6_row_wifi/obj/KERNEL_OBJ \
+            ARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-android- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CC=${CC} \
+            achilles6_row_wifi_defconfig
+
+      - name: Build kernel
+        run: |
+          cp include out/target/product/achilles6_row_wifi/obj/KERNEL_OBJ/ -rf
+          make -j$(nproc) V=1 \
+            O=${GITHUB_WORKSPACE}/out/target/product/achilles6_row_wifi/obj/KERNEL_OBJ \
+            ARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-android- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CC=${CC}
+
+      - name: Build kernel modules
+        run: |
+          make -j$(nproc) \
+            O=${GITHUB_WORKSPACE}/out/target/product/achilles6_row_wifi/obj/KERNEL_OBJ \
+            ARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-android- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CC=${CC} \
+            modules
+
+      - name: Check output
+        run: |
+          KERNEL_IMG=out/target/product/achilles6_row_wifi/obj/KERNEL_OBJ/arch/arm64/boot/Image.gz-dtb
+          if [ -f "$KERNEL_IMG" ]; then
+            echo "✅ Kernel build successful!"
+            ls -lh "$KERNEL_IMG"
+          else
+            echo "❌ Kernel image not found!"
+            exit 1
+          fi
+
+      - name: Upload kernel image
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-Image.gz-dtb
+          path: out/target/product/achilles6_row_wifi/obj/KERNEL_OBJ/arch/arm64/boot/Image.gz-dtb
+          if-no-files-found: error
+
+      - name: Upload kernel modules
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-modules
+          path: out/target/product/achilles6_row_wifi/obj/KERNEL_OBJ/drivers/**/*.ko
+          if-no-files-found: warn
