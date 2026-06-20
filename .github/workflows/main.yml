@@ -32,11 +32,20 @@ jobs:
 
       - name: Fix script permissions
         run: |
+          # 处理有扩展名的脚本
           find scripts/ -name "*.sh" | xargs chmod +x 2>/dev/null || true
           find scripts/ -name "*.pl" | xargs chmod +x 2>/dev/null || true
           find scripts/ -name "*.py" | xargs chmod +x 2>/dev/null || true
           find tools/   -name "*.sh" | xargs chmod +x 2>/dev/null || true
           find tools/   -name "*.py" | xargs chmod +x 2>/dev/null || true
+
+          # 处理 scripts/ 下所有无扩展名的可执行文件（如 dtc_overlay）
+          find scripts/ -type f ! -name "*.*" | xargs chmod +x 2>/dev/null || true
+
+          # 单独确保关键文件有权限
+          chmod +x scripts/dtc/dtc_overlay 2>/dev/null || true
+          chmod +x scripts/ld-version.sh   2>/dev/null || true
+          chmod +x tools/dct/DrvGen.py     2>/dev/null || true
 
       - name: Fix DrvGen.py python2 shebang
         run: |
@@ -52,8 +61,6 @@ jobs:
 
       - name: Fix dtc yylloc multiple definition (gcc 10+ compatibility)
         run: |
-          # gcc 10 起默认 -fno-common，导致旧内核 dtc 出现 yylloc 重复定义
-          # 在 dtc-lexer.lex.c_shipped 中将 yylloc 改为 extern 声明
           DTC_LEXER="scripts/dtc/dtc-lexer.lex.c_shipped"
           if [ -f "$DTC_LEXER" ]; then
             sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' "$DTC_LEXER"
