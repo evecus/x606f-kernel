@@ -33,8 +33,8 @@ $(obj)/%.so: $(obj)/%.so.dbg FORCE
 gen-vdsosym := $(srctree)/$(src)/gen_vdso_offsets.sh
 quiet_cmd_vdsosym = VDSOSYM $@
 define cmd_vdsosym
-	$(NM) $< | $(gen-vdsosym) | LC_ALL=C sort > $@
-	@grep -q '^#define vdso_offset_sigtramp' $@ || { echo "Error: $(NM) output could not be parsed by $(gen-vdsosym) (missing vdso_offset_sigtramp in $@)" >&2; echo "Raw $(NM) output for vdso.so.dbg:" >&2; $(NM) $< >&2; rm -f $@; exit 1; }
+	$(NM) $< | $(gen-vdsosym) | LC_ALL=C sort > $@; \
+	grep -q '^#define vdso_offset_sigtramp' $@ || { echo "Error: $(NM) output could not be parsed by $(gen-vdsosym) (missing vdso_offset_sigtramp in $@)" >&2; echo "Raw $(NM) output for vdso.so.dbg:" >&2; $(NM) $< >&2; rm -f $@; exit 1; }
 endef
 include/generated/vdso-offsets.h: $(obj)/vdso.so.dbg FORCE
 	$(call if_changed,vdsosym)
