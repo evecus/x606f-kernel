@@ -32,17 +32,12 @@ jobs:
 
       - name: Fix script permissions
         run: |
-          # 处理有扩展名的脚本
           find scripts/ -name "*.sh" | xargs chmod +x 2>/dev/null || true
           find scripts/ -name "*.pl" | xargs chmod +x 2>/dev/null || true
           find scripts/ -name "*.py" | xargs chmod +x 2>/dev/null || true
           find tools/   -name "*.sh" | xargs chmod +x 2>/dev/null || true
           find tools/   -name "*.py" | xargs chmod +x 2>/dev/null || true
-
-          # 处理 scripts/ 下所有无扩展名的可执行文件（如 dtc_overlay）
           find scripts/ -type f ! -name "*.*" | xargs chmod +x 2>/dev/null || true
-
-          # 单独确保关键文件有权限
           chmod +x scripts/dtc/dtc_overlay 2>/dev/null || true
           chmod +x scripts/ld-version.sh   2>/dev/null || true
           chmod +x tools/dct/DrvGen.py     2>/dev/null || true
@@ -72,12 +67,13 @@ jobs:
         run: |
           mkdir -p out
 
+          # 去掉 LD=ld.lld，使用 CROSS_COMPILE 对应的 aarch64-linux-gnu-ld
+          # lld 会导致 vdso.lds 构建流程异常
           COMMON_ARGS="O=${GITHUB_WORKSPACE}/out
             ARCH=arm64
             CROSS_COMPILE=aarch64-linux-gnu-
             CLANG_TRIPLE=aarch64-linux-gnu-
             CC=clang
-            LD=ld.lld
             AR=llvm-ar
             NM=llvm-nm
             OBJCOPY=llvm-objcopy
