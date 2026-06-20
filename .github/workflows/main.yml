@@ -50,6 +50,17 @@ jobs:
           echo "Shebang check:"
           head -1 tools/dct/DrvGen.py
 
+      - name: Fix dtc yylloc multiple definition (gcc 10+ compatibility)
+        run: |
+          # gcc 10 起默认 -fno-common，导致旧内核 dtc 出现 yylloc 重复定义
+          # 在 dtc-lexer.lex.c_shipped 中将 yylloc 改为 extern 声明
+          DTC_LEXER="scripts/dtc/dtc-lexer.lex.c_shipped"
+          if [ -f "$DTC_LEXER" ]; then
+            sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' "$DTC_LEXER"
+            echo "Fixed: $DTC_LEXER"
+            grep "yylloc" "$DTC_LEXER"
+          fi
+
       - name: Build kernel
         run: |
           mkdir -p out
