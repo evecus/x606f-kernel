@@ -26,52 +26,47 @@ jobs:
             gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
             clang lld llvm
 
+      - name: Fix script permissions
+        run: |
+          # 修复所有 scripts/ 和 tools/ 下的脚本权限
+          find scripts/ -name "*.sh" | xargs chmod +x
+          find scripts/ -name "*.pl" | xargs chmod +x
+          find scripts/ -name "*.py" | xargs chmod +x
+          find tools/ -name "*.sh" | xargs chmod +x 2>/dev/null || true
+          find tools/ -name "*.py" | xargs chmod +x 2>/dev/null || true
+          # 单独确保关键脚本有权限
+          chmod +x scripts/ld-version.sh 2>/dev/null || true
+          chmod +x tools/dct/DrvGen.py 2>/dev/null || true
+
       - name: Build kernel
         run: |
-          export ARCH=arm64
-          export CROSS_COMPILE=aarch64-linux-gnu-
-          export CC=clang
-          export CLANG_TRIPLE=aarch64-linux-gnu-
-          export KCFLAGS="-fno-integrated-as"
-
           mkdir -p out
 
+          COMMON_ARGS="O=${GITHUB_WORKSPACE}/out
+            ARCH=arm64
+            CROSS_COMPILE=aarch64-linux-gnu-
+            CLANG_TRIPLE=aarch64-linux-gnu-
+            CC=clang
+            LD=ld.lld
+            AR=llvm-ar
+            NM=llvm-nm
+            OBJCOPY=llvm-objcopy
+            OBJDUMP=llvm-objdump
+            STRIP=llvm-strip"
+
           # 1. 生成配置
-          make -j$(nproc) \
-            O=out \
-            ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            CC=clang \
-            LD=ld.lld \
-            AR=llvm-ar \
-            NM=llvm-nm \
-            OBJCOPY=llvm-objcopy \
-            OBJDUMP=llvm-objdump \
-            STRIP=llvm-strip \
-            achilles6_row_wifi_defconfig
+          make -j$(nproc) $COMMON_ARGS achilles6_row_wifi_defconfig
 
           # 2. 编译内核
-          make -j$(nproc) \
-            O=out \
-            ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            CC=clang \
-            LD=ld.lld \
-            AR=llvm-ar \
-            NM=llvm-nm \
-            OBJCOPY=llvm-objcopy \
-            OBJDUMP=llvm-objdump \
-            STRIP=llvm-strip
+          make -j$(nproc) $COMMON_ARGS
 
       - name: Check output
         run: |
           if [ -f "out/arch/arm64/boot/Image.gz-dtb" ]; then
-            echo "✅ Build successful!"
+            echo "✅ Build successful! Image.gz-dtb"
             ls -lh out/arch/arm64/boot/Image.gz-dtb
           elif [ -f "out/arch/arm64/boot/Image.gz" ]; then
-            echo "✅ Build successful! (Image.gz)"
+            echo "✅ Build successful! Image.gz"
             ls -lh out/arch/arm64/boot/Image.gz
           else
             echo "❌ Kernel image not found, listing boot dir:"
