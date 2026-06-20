@@ -28,6 +28,41 @@
 #include <asm/cpufeature.h>
 #include <asm/alternative.h>
 
+/*
+ * SCTLR_EL1 bits/flags used to build SCTLR_EL1_SET below.
+ *
+ * These mirror the bit definitions normally provided by
+ * arch/arm64/include/asm/sysreg.h on upstream kernels; that header
+ * only carries a partial set (UCI/SPAN/UCT/SED/CP15BEN) in this tree,
+ * so the remaining bits required to assemble the initial SCTLR_EL1
+ * value are defined locally here.
+ */
+#define SCTLR_EL1_RES1		((1 << 11) | (1 << 20) | (1 << 22) | \
+				 (1 << 28) | (1 << 29))
+#define SCTLR_EL1_ITD		(1 << 7)
+#define SCTLR_EL1_UMA		(1 << 9)
+#define SCTLR_EL1_SA0		(1 << 4)
+#define SCTLR_EL1_SA		(1 << 3)
+#define SCTLR_EL1_I		(1 << 12)
+#define SCTLR_EL1_C		(1 << 2)
+#define SCTLR_EL1_M		(1 << 0)
+
+#ifdef CONFIG_CPU_BIG_ENDIAN
+#define ENDIAN_SET_EL1		(1 << 25)
+#else
+#define ENDIAN_SET_EL1		0
+#endif
+
+/*
+ * Initial value for SCTLR_EL1, applied by __cpu_setup() before the MMU
+ * is enabled. UCI/SPAN/UCT/SED/CP15BEN come from <asm/sysreg.h>.
+ */
+#define SCTLR_EL1_SET	(SCTLR_EL1_UCI    | SCTLR_EL1_RES1   | SCTLR_EL1_SPAN | \
+			 SCTLR_EL1_UCT    | SCTLR_EL1_CP15BEN | SCTLR_EL1_SED  | \
+			 SCTLR_EL1_ITD    | ENDIAN_SET_EL1    | SCTLR_EL1_UMA  | \
+			 SCTLR_EL1_SA0    | SCTLR_EL1_SA      | SCTLR_EL1_I    | \
+			 SCTLR_EL1_C      | SCTLR_EL1_M)
+
 #ifdef CONFIG_ARM64_64K_PAGES
 #define TCR_TG_FLAGS	TCR_TG0_64K | TCR_TG1_64K
 #elif defined(CONFIG_ARM64_16K_PAGES)
